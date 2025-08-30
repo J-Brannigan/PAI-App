@@ -12,3 +12,7 @@ storage:
 # Runtime behaviour
 runtime:
   stream: true
+
+ui:
+  config: ui.yaml
+

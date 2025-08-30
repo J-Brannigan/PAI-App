@@ -1,0 +1,21 @@
+banner:
+  enabled: true
+  title: PAI
+  subtitle: LLM-driven CLI
+  show_version: true
+  watch_resize: false
+  clear_screen: true
+
+  # Panel
+  full_width: true
+  border_style: cyan
+  padding: { top: 0, right: 1, bottom: 0, left: 1 }
+
+  # FIGlet font selection by terminal width (first match where width <= max_width)
+  fonts:
+    - { max_width: 39,  name: small }
+    - { max_width: 79,  name: Standard }
+    - { max_width: 9999, name: Slant }
+
+  # Content alignment inside the panel
+  align: center
