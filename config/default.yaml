@@ -1,3 +1,14 @@
+# App model settings
 model:
   provider: openai
   name: gpt-4o-mini
+
+# Transcript storage
+storage:
+  backend: file
+  transcripts_dir: sessions
+  resume: null
+
+# Runtime behaviour
+runtime:
+  stream: true

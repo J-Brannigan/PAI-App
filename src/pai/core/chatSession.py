@@ -1,35 +1,40 @@
-import datetime as dt
-from typing import List, Dict
+from __future__ import annotations
+from typing import Iterable
 
 class ChatSession:
-    def __init__(self, model, prompt_path):
-        self.messages: List[Dict[str, str]] = []
+    def __init__(self, model, transcript):
         self.model = model
-        self.prompt_path = prompt_path
-        self.messages =[{"role": "system", "content":self._system_prompt()}]
-        ts = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
-        self.id = ts
-
-    def _system_prompt(self) -> str:
-        prompt = self.prompt_path.read_text(encoding="utf-8")
-        return prompt
+        self.transcript = transcript  # instance of Transcript
 
     def _call_model(self, messages):
-        reply = self.model.chat(messages)
-        return reply
+        return self.model.chat(messages)
 
     def run_turn(self, user_text: str) -> str:
-        self.messages.append({"role": "user", "content": user_text})
+        self.transcript.append_message('user', user_text, status='complete')
+        reply = self._call_model(self.transcript.messages)
+        text = reply['content'] if isinstance(reply, dict) else reply
+        self.transcript.append_message('assistant', text, status='complete')
+        return text
 
-        reply = self._call_model(self.messages)
+    def run_turn_stream(self, user_text: str) -> Iterable[str]:
+        self.transcript.append_message('user', user_text, status='complete')
+        chunks: list[str] = []
 
-        # If reply is already a dict:
-        if isinstance(reply, dict):
-            reply_content = reply["content"]
-        else:
-            # If reply is a string (plain text):
-            reply_content = reply
+        def _gen():
+            try:
+                if hasattr(self.model, 'chat_stream'):
+                    for piece in self.model.chat_stream(self.transcript.messages):
+                        if piece:
+                            chunks.append(piece)
+                            yield piece
+                else:
+                    reply = self._call_model(self.transcript.messages)
+                    text = reply['content'] if isinstance(reply, dict) else reply
+                    chunks.append(text)
+                    yield text
+            finally:
+                text = ''.join(chunks)
+                status = 'complete' if text else 'partial'
+                self.transcript.append_message('assistant', text, status=status)
 
-        self.messages.append({"role": "assistant", "content": reply_content})
-
-        return reply_content
+        return _gen()
