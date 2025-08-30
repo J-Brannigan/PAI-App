@@ -1,8 +1,12 @@
 import typer
 from pathlib import Path
+from importlib.metadata import version as pkg_version, PackageNotFoundError
+
 from .config import build_app
 from .core.transcript import Transcript
 from .core.chatSession import ChatSession
+from .ui.banner import render_banner_from_config
+from .ui.ui_config import load_ui_config, UIConfigError
 
 app = typer.Typer(add_completion=False)
 
@@ -10,6 +14,20 @@ app = typer.Typer(add_completion=False)
 def chat(config: Path = Path("config/default.yaml")):
     ctx = build_app(config)
     cfg = ctx['cfg'] or {}
+
+    ui_cfg_path = (cfg.get("ui") or {}).get("config")
+
+    if ui_cfg_path:
+        ui_file = (config.parent / ui_cfg_path).resolve() if not Path(ui_cfg_path).is_absolute() else Path(ui_cfg_path)
+        try:
+            ui_cfg = load_ui_config(ui_file)
+            try:
+                app_ver = f"v{pkg_version('pai')}"
+            except PackageNotFoundError:
+                app_ver = None
+            render_banner_from_config(ui_cfg, app_ver)
+        except UIConfigError as e:
+            print(f"[ui] {e}")
 
     storage = (cfg.get('storage') or {})
 
