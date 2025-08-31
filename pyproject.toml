@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-pai = "pai.cli:run"
+pai = "pai.cli:app"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

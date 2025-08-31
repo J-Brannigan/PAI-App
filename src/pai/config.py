@@ -1,17 +1,15 @@
-# src/pai/config.py
-
 from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict
 import yaml
 from dotenv import load_dotenv
 
-from .providers.openai import OpenAIFunctionProvider
+from .providers.openai_adapter import OpenAIAdapter
 from .providers.echo import EchoProvider
 from .utils.secrets import get_openai_api_key
+from .infra.resilient_provider import ResilientProvider, ResiliencePolicy
 
 load_dotenv()
-
 
 def _get(d: Dict[str, Any], dotted: str) -> Any:
     cur: Any = d
@@ -76,22 +74,19 @@ def build_app(config_path: Path):
     cfg = load_config(config_path)
 
     provider = cfg["model"]["provider"]
-    model_name = cfg["model"]["name"]
 
     if provider == "openai":
         api_key = get_openai_api_key()
         if not api_key:
             raise ValueError("OpenAI API key could not be found")
-        model = OpenAIFunctionProvider(model=model_name, api_key=api_key)
-
+        inner = OpenAIAdapter(model=cfg["model"]["name"], api_key=api_key)
     elif provider == "echo":
-        model = EchoProvider()
-
+        inner = EchoProvider()
     else:
         # Should be unreachable due to earlier validation
         raise ValueError(f"Unknown provider: {provider}")
 
-    return {
-        "cfg": cfg,   # use in CLI for storage/runtime decisions
-        "model": model,
-    }
+    policy = ResiliencePolicy(max_retries=3, base_delay=0.5, total_timeout=30.0, debug_logging=False)
+    provider = ResilientProvider(inner, policy=policy)
+
+    return {"cfg": cfg, "model": provider}
