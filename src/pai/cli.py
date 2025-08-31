@@ -1,12 +1,11 @@
-from __future__ import annotations
+import typer
 from pathlib import Path
 from importlib.metadata import version as pkg_version, PackageNotFoundError
-import typer
 
-from .config import build_app
-from .core.chatSession import ChatSession
-from .core.transcript import Transcript
+from .bootstrap import build_app
+from .core.chat_session import ChatSession
 
+# Optional UI banner
 try:
     from .ui.ui_config import load_ui_config, UIConfigError  # type: ignore
     from .ui.banner import render_banner_from_config  # type: ignore
@@ -16,24 +15,30 @@ except Exception:
 
 app = typer.Typer(add_completion=False)
 
-# Anchor repo root from .../repo/src/pai/cli.py
-REPO_ROOT = Path(__file__).resolve().parents[2]
-
 
 @app.callback(invoke_without_command=True)
-def chat(config: Path = Path("config/default.yaml")):
-    # Build provider + load YAML
-    ctx = build_app(config)
-    cfg = ctx["cfg"] or {}
+def chat(config: Path = Path("config/default.yaml")) -> None:
+    """
+    Start the PAI REPL.
+    """
+    try:
+        ctx = build_app(config)
+    except Exception as e:
+        print(f"[fatal] {e}")
+        raise typer.Exit(code=1)
 
-    # ----- Optional banner from ui.yaml -----
+    cfg = ctx["cfg"]
+    paths = ctx["paths"]
+    provider = ctx["provider"]
+    transcript = ctx["transcript"]
+
+    # ----- Optional banner from ui.yaml (path resolved relative to config folder) -----
     if HAVE_UI:
         ui_cfg_rel = (cfg.get("ui") or {}).get("config")
         if ui_cfg_rel:
-            config_dir = config.resolve().parent  # e.g. <repo>/config
-            p = Path(ui_cfg_rel)
-            ui_file = p if p.is_absolute() else (config_dir / p).resolve()
-
+            config_dir = paths["config_dir"]
+            ui_path = Path(ui_cfg_rel)
+            ui_file = ui_path if ui_path.is_absolute() else (config_dir / ui_path).resolve()
             try:
                 ui_cfg = load_ui_config(ui_file)
                 try:
@@ -44,36 +49,10 @@ def chat(config: Path = Path("config/default.yaml")):
             except UIConfigError as e:
                 print(f"[ui] {e}")
 
-    # ----- System prompt -----
-    system_prompt_path = Path(__file__).parent / "prompts" / "system.txt"
-    if system_prompt_path.exists():
-        system_prompt = system_prompt_path.read_text(encoding="utf-8")
-    else:
-        system_prompt = "You're a helpful AI."
-
-    # ----- Storage settings -----
-    storage = cfg.get("storage") or {}
-    backend = (storage.get("backend") or "file").lower()
-    tdir_cfg = storage.get("transcripts_dir", "sessions")
-    resume_id = storage.get("resume")  # may be None
-
-    tdir_path = Path(tdir_cfg)
-    transcripts_dir = tdir_path if tdir_path.is_absolute() else (REPO_ROOT / tdir_path)
-
-    transcript = Transcript(
-        system_prompt=system_prompt,
-        session_id=resume_id,  # None => new session id
-        root_dir=(transcripts_dir if backend == "file" else None),
-        header_meta={
-            "config_path": str(config),
-            "model": getattr(ctx["model"], "model", None),
-        },
-    )
-
     # ----- Session -----
-    chat_session = ChatSession(model=ctx["model"], transcript=transcript)
+    chat_session = ChatSession(model=provider, transcript=transcript)
 
-    # ----- Runtime -----
+    # ----- Runtime flags -----
     runtime = cfg.get("runtime") or {}
     use_stream = bool(runtime.get("stream", False))
 
@@ -83,10 +62,15 @@ def chat(config: Path = Path("config/default.yaml")):
             user_input = input("PAI> ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nBye.")
+            transcript.close()
             return
+
+        if not user_input:
+            continue
 
         if user_input in ("/exit", "/quit"):
             print("Bye.")
+            transcript.close()
             return
 
         if user_input == "/help":
@@ -94,10 +78,14 @@ def chat(config: Path = Path("config/default.yaml")):
             continue
 
         if user_input == "/id":
-            print(transcript.session_id)
+            # Transcript owns the canonical id
+            try:
+                print(transcript.session_id)  # type: ignore[attr-defined]
+            except Exception:
+                print("[warn] no session id available")
             continue
 
-        # Normal turn
+        # ----- Normal turn -----
         if use_stream:
             gen = chat_session.run_turn_stream(user_input)
             try:
@@ -105,7 +93,7 @@ def chat(config: Path = Path("config/default.yaml")):
                     print(piece, end="", flush=True)
                 print("")
             except KeyboardInterrupt:
-                # Ensure finaliser persists partial
+                # Ensure finaliser runs to persist partial
                 try:
                     gen.close()
                 except Exception:
@@ -114,3 +102,11 @@ def chat(config: Path = Path("config/default.yaml")):
         else:
             reply = chat_session.run_turn(user_input)
             print(reply)
+
+
+def run() -> None:
+    app()
+
+
+if __name__ == "__main__":
+    run()

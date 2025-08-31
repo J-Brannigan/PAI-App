@@ -3,6 +3,18 @@ model:
   provider: openai
   name: gpt-4o-mini
 
+providers:
+  openai:
+    params: { temperature: 0.2 }
+    timeout: 60
+  echo:
+    token_delay: 0.08
+
+secrets:
+  method: env
+  mapping:
+    openai: {api_key: OPENAI_API_KEY}
+
 # Transcript storage
 storage:
   backend: file
