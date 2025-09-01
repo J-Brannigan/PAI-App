@@ -1,12 +1,14 @@
 # App model settings
 model:
   provider: openai
-  name: gpt-4o-mini
+  name: gpt-5-nano-2025-08-07
 
 providers:
   openai:
     params: { temperature: 0.2 }
     timeout: 60
+    strict_params: false
+    debug_params: true
   echo:
     token_delay: 0.08
 

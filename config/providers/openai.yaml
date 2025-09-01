@@ -1,0 +1,14 @@
+# Declarative parameter policy for OpenAI adapter.
+# Rules are evaluated top-to-bottom; first match wins.
+
+rules:
+  # Nano family: reject or drop tuning knobs
+  - when_model_matches: "^gpt-5-nano"
+    action: drop            # "drop" to silently remove; or "reject" to error
+    params: [temperature, top_p, frequency_penalty, presence_penalty]
+    message: "Nano models use default sampling only."
+
+  # Default: allow common knobs
+  - when_model_matches: ".*"
+    action: allow
+    params: [temperature, top_p, frequency_penalty, presence_penalty]

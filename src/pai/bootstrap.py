@@ -7,6 +7,8 @@ from .config_loader import load_config
 from .providers.registry import ProviderRegistry
 from .storage.transcript import Transcript
 from .resilience.resilient_provider import ResilientProvider, ResiliencePolicy
+from pai.providers.param_policy import ParamPolicy
+from pai.core.errors import ProviderClientError
 from .secrets.sources import SecretsResolver
 
 
@@ -32,10 +34,41 @@ def build_app(config_path: Path, repo_root: Optional[Path] = None) -> Dict[str, 
     mapping = secrets_cfg.get("mapping", {})
     resolver = SecretsResolver(method=method, mapping=mapping)
 
-    adapter_cls = ProviderRegistry.get(provider_name)
-    inner = adapter_cls.create(model_name=model_name, provider_cfg=provider_cfg, secrets=resolver)
+    raw_params = dict(provider_cfg.get("params", {}) or {})
 
-    policy = ResiliencePolicy()  # tweak later or make YAML-driven
+    # Load optional per-provider policy YAML
+    policy_file = (cfg.get("providers", {})
+                   .get(provider_name, {})
+                   .get("policy_file"))  # allow override in YAML
+    if policy_file:
+        policy_path = Path(policy_file)
+        if not policy_path.is_absolute():
+            # resolve relative to config dir
+            policy_path = config_path.parent / policy_path
+    else:
+        # default location: config/providers/<name>.yaml
+        policy_path = (config_path.parent / "providers" / f"{provider_name}.yaml")
+
+    effective_params = raw_params
+    if policy_path.exists():
+        policy = ParamPolicy.load(policy_path)
+        try:
+            effective_params, warns = policy.evaluate(model_name, raw_params)
+            # Print/warn once (here) if any
+            for w in warns:
+                print(f"[{provider_name}] {w}")
+        except ValueError as e:
+            # Map to neutral client error so resilience won’t retry
+            raise ProviderClientError(str(e))
+
+    Adapter = ProviderRegistry.get(provider_name)
+    inner = Adapter.create(
+        model_name=model_name,
+        provider_cfg={**provider_cfg, "params": effective_params},
+        secrets=resolver,
+    )
+
+    policy = ResiliencePolicy()
     provider = ResilientProvider(inner, policy=policy)
 
     # ----- Transcript path -----
