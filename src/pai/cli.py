@@ -31,6 +31,7 @@ def chat(config: Path = Path("config/default.yaml")) -> None:
     paths = ctx["paths"]
     provider = ctx["provider"]
     transcript = ctx["transcript"]
+    context_cfg = cfg.get("context")
 
     # ----- Optional banner from ui.yaml (path resolved relative to config folder) -----
     if HAVE_UI:
@@ -50,7 +51,11 @@ def chat(config: Path = Path("config/default.yaml")) -> None:
                 print(f"[ui] {e}")
 
     # ----- Session -----
-    chat_session = ChatSession(model=provider, transcript=transcript)
+    chat_session = ChatSession(
+        model=ctx["provider"],
+        transcript=ctx["transcript"],
+        context=context_cfg,
+    )
 
     # ----- Runtime flags -----
     runtime = cfg.get("runtime") or {}

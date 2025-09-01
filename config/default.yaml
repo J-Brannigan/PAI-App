@@ -25,6 +25,12 @@ storage:
 runtime:
   stream: true
 
+# UI
 ui:
   config: ui.yaml
 
+# Token context
+context:
+  max_input_tokens: 6000          # hard cap for request messages
+  response_reserve_tokens: 1000   # leave room for the model's reply
+  always_keep_last_n: 6           # keep the last N messages (plus the system prompt)
