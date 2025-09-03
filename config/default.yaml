@@ -5,7 +5,7 @@ model:
 
 providers:
   openai:
-    params: { temperature: 0.2 }
+    params: { temperature: 0.2}
     timeout: 60
     strict_params: false
     debug_params: true
@@ -36,3 +36,9 @@ context:
   max_input_tokens: 6000          # hard cap for request messages
   response_reserve_tokens: 1000   # leave room for the model's reply
   always_keep_last_n: 6           # keep the last N messages (plus the system prompt)
+
+logging:
+  level: info              # (future) DEBUG/INFO/WARN/ERROR
+  notices: brief             # one of: off | brief | full
+  rich: true               # if false, fall back to plain text/typer
+
