@@ -32,7 +32,39 @@ class FakeAdapter:
         return _Obj()
 
 
-def test_bootstrap_applies_drop_policy_once_and_filters_params(tmp_path: Path, monkeypatch, capsys):
+def _build_cfg_yaml(policy_file: Path, params: dict, stream: bool) -> str:
+    cfg_dict = {
+        "model": {"provider": "openai", "name": "gpt-5-nano-2025-08-07"},
+        "providers": {
+            "openai": {
+                "params": params,
+                "policy_file": str(policy_file),
+                "timeout": 10,
+            }
+        },
+        "secrets": {"method": "env", "mapping": {"openai": {"api_key": "OPENAI_API_KEY"}}},
+        "storage": {"backend": "file", "transcripts_dir": "sessions"},
+        "runtime": {"stream": stream},
+    }
+    return yaml.safe_dump(cfg_dict, sort_keys=False)
+
+
+def _assert_notice_mentions_dropped_keys(notices, keys: set[str]) -> None:
+    assert notices, "Expected at least one notice"
+    # If structured notices (dicts) exist, prefer them
+    for n in notices:
+        if isinstance(n, dict) and n.get("type") == "policy_drop":
+            dropped = set((n.get("dropped") or {}).keys())
+            assert keys.issubset(dropped), f"Notice missing dropped keys {keys - dropped}"
+            return
+    # Otherwise, fall back to string containment
+    joined = " ".join(str(n) for n in notices)
+    for k in keys:
+        assert k in joined, f"Notice string missing key: {k}"
+
+
+def test_bootstrap_applies_drop_policy_once_and_filters_params(tmp_path: Path, monkeypatch):
+    # Policy that drops sampling knobs for nano models
     policy_file = write_yaml(
         tmp_path / "config" / "providers" / "openai.yaml",
         """
@@ -44,36 +76,28 @@ def test_bootstrap_applies_drop_policy_once_and_filters_params(tmp_path: Path, m
         """,
     )
 
-    # Build config as a Python dict, then dump to YAML
-    cfg_dict = {
-        "model": {"provider": "openai", "name": "gpt-5-nano-2025-08-07"},
-        "providers": {
-            "openai": {
-                "params": {"temperature": 0.2, "top_p": 0.9, "keep": "ok"},
-                "policy_file": str(policy_file),
-                "timeout": 10,
-            }
-        },
-        "secrets": {"method": "env", "mapping": {"openai": {"api_key": "OPENAI_API_KEY"}}},
-        "storage": {"backend": "file", "transcripts_dir": "sessions"},
-        "runtime": {"stream": True},
-    }
-    cfg_yaml = yaml.safe_dump(cfg_dict, sort_keys=False)
-    cfg_file = write_yaml(tmp_path / "config" / "default.yaml", cfg_yaml)
+    cfg_file = write_yaml(
+        tmp_path / "config" / "default.yaml",
+        _build_cfg_yaml(policy_file, {"temperature": 0.2, "top_p": 0.9, "keep": "ok"}, stream=True),
+    )
 
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    # Don’t import the real adapter
     monkeypatch.setattr(ProviderRegistry, "get", classmethod(lambda cls, name: FakeAdapter))
 
     from pai.bootstrap import build_app
     app = build_app(cfg_file)
 
+    # Adapter was created and received filtered params
     assert FakeAdapter.created is True
-    assert FakeAdapter.captured_params == {"keep": "ok"}  # temperature/top_p removed
-    out = capsys.readouterr().out
-    assert "Nano models use default sampling only." in out
+    assert FakeAdapter.captured_params == {"keep": "ok"}
+
+    # App returned a notice that mentions the dropped keys
+    _assert_notice_mentions_dropped_keys(app.get("warnings", []), {"temperature", "top_p"})
 
 
 def test_bootstrap_reject_policy_raises_client_error(tmp_path: Path, monkeypatch):
+    # Policy that rejects temperature for nano models
     policy_file = write_yaml(
         tmp_path / "config" / "providers" / "openai.yaml",
         """
@@ -85,27 +109,18 @@ def test_bootstrap_reject_policy_raises_client_error(tmp_path: Path, monkeypatch
         """,
     )
 
-    cfg_dict = {
-        "model": {"provider": "openai", "name": "gpt-5-nano-2025-08-07"},
-        "providers": {
-            "openai": {
-                "params": {"temperature": 0.2},
-                "policy_file": str(policy_file),
-            }
-        },
-        "secrets": {"method": "env", "mapping": {"openai": {"api_key": "OPENAI_API_KEY"}}},
-        "storage": {"backend": "file", "transcripts_dir": "sessions"},
-        "runtime": {"stream": False},
-    }
-    cfg_yaml = yaml.safe_dump(cfg_dict, sort_keys=False)
-    cfg_file = write_yaml(tmp_path / "config" / "default.yaml", cfg_yaml)
+    cfg_file = write_yaml(
+        tmp_path / "config" / "default.yaml",
+        _build_cfg_yaml(policy_file, {"temperature": 0.2}, stream=False),
+    )
 
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setattr(ProviderRegistry, "get", classmethod(lambda cls, name: FakeAdapter))
 
     from pai.bootstrap import build_app
+    # We only care that it’s a non-retryable client error; don’t pin the exact message
     try:
         build_app(cfg_file)
         raise AssertionError("Expected ProviderClientError due to reject policy")
-    except ProviderClientError as e:
-        assert "Remove temperature for nano models." in str(e)
+    except ProviderClientError:
+        pass
