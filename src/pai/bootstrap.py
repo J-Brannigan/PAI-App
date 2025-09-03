@@ -34,6 +34,8 @@ def build_app(config_path: Path, repo_root: Optional[Path] = None) -> Dict[str, 
     mapping = secrets_cfg.get("mapping", {})
     resolver = SecretsResolver(method=method, mapping=mapping)
 
+    warnings=[]
+
     raw_params = dict(provider_cfg.get("params", {}) or {})
 
     # Load optional per-provider policy YAML
@@ -54,9 +56,26 @@ def build_app(config_path: Path, repo_root: Optional[Path] = None) -> Dict[str, 
         policy = ParamPolicy.load(policy_path)
         try:
             effective_params, warns = policy.evaluate(model_name, raw_params)
-            # Print/warn once (here) if any
-            for w in warns:
-                print(f"[{provider_name}] {w}")
+
+            # Compute exactly what was dropped
+            dropped = {k: v for k, v in (raw_params or {}).items() if k not in (effective_params or {})}
+
+            if dropped:
+                try:
+                    policy_rel = str(policy_path.relative_to(config_dir))
+                except Exception:
+                    policy_rel = str(policy_path)
+                cfg_loc = f"{config_path.name} → providers.{provider_name}.params"
+
+                warnings.append({
+                    "type": "policy_drop",
+                    "provider": provider_name,
+                    "model": model_name,
+                    "source": cfg_loc,
+                    "policy": policy_rel,
+                    "dropped": dropped,  # dict of key->value
+                    "message": "Model does not accept these parameters; they were dropped.",
+                })
         except ValueError as e:
             # Map to neutral client error so resilience won’t retry
             raise ProviderClientError(str(e))
@@ -96,4 +115,5 @@ def build_app(config_path: Path, repo_root: Optional[Path] = None) -> Dict[str, 
         "paths": {"config_dir": config_dir, "repo_root": repo_root, "transcripts_dir": transcripts_dir},
         "provider": provider,
         "transcript": transcript,
+        "warnings": warnings
     }
