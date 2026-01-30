@@ -41,7 +41,7 @@ Or via `.env` at the repo root:
 OPENAI_API_KEY=sk-...
 ```
 
-Or macOS Keychain (service name `openai`):
+Or macOS Keychain (service name matches `secrets.mapping.openai.api_key`; default is `openai`):
 
 ```bash
 security add-generic-password -a OPENAI_API_KEY -s openai -w sk-...
@@ -49,7 +49,7 @@ security add-generic-password -a OPENAI_API_KEY -s openai -w sk-...
 
 ## Configure
 
-Create `config/default.yaml`:
+Edit `config/default.yaml` (already present):
 
 ```yaml
 model:
@@ -66,7 +66,7 @@ providers:
 secrets:
   method: env               # or: [keyring, env]
   mapping:
-    openai: { api_key: OPENAI_API_KEY }
+    openai: { api_key: openai }  # resolves env OPENAI_API_KEY/OPENAI or keyring service "openai"
 
 storage:
   backend: file
@@ -143,7 +143,7 @@ tests/            # pytest suite
 
 ## CI: tests on pull requests
 
-This repository is set up to run the pytest suite automatically on every pull request (and on pushes to the default branch). The workflow lives at `.github/workflows/tests.yml`.
+This repository is set up to run the pytest suite automatically on every pull request (and on pushes to the default branch). The workflow lives at `.github/workflows/tests.yaml`.
 
 ## Troubleshooting
 

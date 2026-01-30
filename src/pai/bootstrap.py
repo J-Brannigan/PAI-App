@@ -76,6 +76,9 @@ def build_app(config_path: Path, repo_root: Optional[Path] = None) -> Dict[str, 
                     "dropped": dropped,  # dict of key->value
                     "message": "Model does not accept these parameters; they were dropped.",
                 })
+                if provider_cfg.get("strict_params", False):
+                    dropped_keys = ", ".join(dropped.keys())
+                    raise ProviderClientError(f"Model params not allowed: {dropped_keys}")
         except ValueError as e:
             # Map to neutral client error so resilience won’t retry
             raise ProviderClientError(str(e))

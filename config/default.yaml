@@ -15,7 +15,7 @@ providers:
 secrets:
   method: env
   mapping:
-    openai: {api_key: OPENAI_API_KEY}
+    openai: {api_key: openai}
 
 # Transcript storage
 storage:
@@ -41,4 +41,3 @@ logging:
   level: info              # (future) DEBUG/INFO/WARN/ERROR
   notices: brief             # one of: off | brief | full
   rich: true               # if false, fall back to plain text/typer
-
