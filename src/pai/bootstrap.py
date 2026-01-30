@@ -12,34 +12,9 @@ from pai.core.errors import ProviderClientError
 from .secrets.sources import SecretsResolver
 
 
-def build_app(
-    config_path: Path,
-    repo_root: Optional[Path] = None,
-    *,
-    provider: Optional[str] = None,
-    model: Optional[str] = None,
-    stream: Optional[bool] = None,
-) -> Dict[str, Any]:
-    """
-    Composition root: load YAML, build provider (wrapped with resilience), and create Transcript.
-    Returns: dict with cfg, paths, provider, transcript.
-    """
-    load_dotenv()
-    cfg = load_config(config_path)
-    if provider:
-        cfg["model"]["provider"] = str(provider).lower()
-        if cfg["model"]["provider"] not in ("openai", "echo"):
-            raise ConfigError(
-                f"Unknown model.provider '{cfg['model']['provider']}' (expected 'openai' or 'echo')."
-            )
-    if model:
-        cfg["model"]["name"] = model
-    if stream is not None:
-        cfg["runtime"]["stream"] = bool(stream)
+def build_provider(cfg: Dict[str, Any], config_path: Path) -> tuple[ResilientProvider, list]:
     config_dir = config_path.resolve().parent
-    repo_root = repo_root or Path(__file__).resolve().parents[2]
 
-    # ----- Providers -----
     ProviderRegistry.ensure_imports()  # make sure built-ins register
 
     provider_name = cfg["model"]["provider"]
@@ -47,11 +22,11 @@ def build_app(
     provider_cfg = (cfg.get("providers") or {}).get(provider_name, {})
 
     secrets_cfg = cfg.get("secrets") or {}
-    method = secrets_cfg.get("method","env")
+    method = secrets_cfg.get("method", "env")
     mapping = secrets_cfg.get("mapping", {})
     resolver = SecretsResolver(method=method, mapping=mapping)
 
-    warnings=[]
+    warnings = []
 
     raw_params = dict(provider_cfg.get("params", {}) or {})
 
@@ -110,6 +85,39 @@ def build_app(
     policy = ResiliencePolicy()
     provider = ResilientProvider(inner, policy=policy)
 
+    return provider, warnings
+
+
+def build_app(
+    config_path: Path,
+    repo_root: Optional[Path] = None,
+    *,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+    stream: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """
+    Composition root: load YAML, build provider (wrapped with resilience), and create Transcript.
+    Returns: dict with cfg, paths, provider, transcript.
+    """
+    load_dotenv()
+    cfg = load_config(config_path)
+    if provider:
+        cfg["model"]["provider"] = str(provider).lower()
+        if cfg["model"]["provider"] not in ("openai", "echo"):
+            raise ConfigError(
+                f"Unknown model.provider '{cfg['model']['provider']}' (expected 'openai' or 'echo')."
+            )
+    if model:
+        cfg["model"]["name"] = model
+    if stream is not None:
+        cfg["runtime"]["stream"] = bool(stream)
+    config_dir = config_path.resolve().parent
+    repo_root = repo_root or Path(__file__).resolve().parents[2]
+
+    # ----- Providers -----
+    provider_obj, warnings = build_provider(cfg, config_path)
+
     # ----- Transcript path -----
     tdir_raw = cfg["storage"]["transcripts_dir"]
     tdir_path = Path(tdir_raw)
@@ -129,14 +137,14 @@ def build_app(
         system_prompt=system_prompt,
         session_id=resume_id,
         root_dir=(transcripts_dir if backend == "file" else None),
-        header_meta={"config_path": str(config_path), "provider": provider_name, "model": model_name},
+        header_meta={"config_path": str(config_path), "provider": cfg["model"]["provider"], "model": cfg["model"]["name"]},
         redact=redact_fn,
     )
 
     return {
         "cfg": cfg,
         "paths": {"config_dir": config_dir, "repo_root": repo_root, "transcripts_dir": transcripts_dir},
-        "provider": provider,
+        "provider": provider_obj,
         "transcript": transcript,
         "warnings": warnings
     }

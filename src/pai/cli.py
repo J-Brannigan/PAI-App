@@ -41,6 +41,7 @@ def _normalise_notices(val) -> str:
 
 @app.callback(invoke_without_command=True)
 def chat(
+    ctx: typer.Context,
     config: Path = typer.Option(Path("config/default.yaml"), "--config", "-c"),
     provider: Optional[str] = typer.Option(None, "--provider", help="Override model.provider"),
     model: Optional[str] = typer.Option(None, "--model", help="Override model.name"),
@@ -50,6 +51,8 @@ def chat(
     """
     Start the PAI REPL.
     """
+    if ctx.invoked_subcommand:
+        return
     try:
         if stream and no_stream:
             print("[fatal] Cannot use both --stream and --no-stream")
@@ -187,6 +190,22 @@ def chat(
         else:
             reply = chat_session.run_turn(user_input)
             print(reply)
+
+
+@app.command()
+def web(
+    config: Path = typer.Option(Path("config/default.yaml"), "--config", "-c"),
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8000, "--port"),
+    provider: Optional[str] = typer.Option(None, "--provider", help="Override model.provider"),
+    model: Optional[str] = typer.Option(None, "--model", help="Override model.name"),
+    reload: bool = typer.Option(False, "--reload", help="Auto-reload on code changes"),
+) -> None:
+    """
+    Start the web UI server.
+    """
+    from .web import run as web_run
+    web_run(config=config, host=host, port=port, provider=provider, model=model, reload=reload)
 
 
 def run() -> None:

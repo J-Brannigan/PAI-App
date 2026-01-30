@@ -13,7 +13,7 @@ providers:
     token_delay: 0.08
 
 secrets:
-  method: env
+  method: [keyring, env]
   mapping:
     openai: {api_key: openai}
 

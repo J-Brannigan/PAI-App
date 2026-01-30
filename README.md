@@ -119,6 +119,16 @@ In the REPL:
 /help   /id   /quit
 ```
 
+## Web UI
+
+Start the ChatGPT-style web interface:
+
+```bash
+pai web --host 127.0.0.1 --port 8000
+```
+
+Then open `http://127.0.0.1:8000` in your browser. The web UI supports streaming, session IDs, and the same config features as the CLI.
+
 ## How it works
 
 - `cli.py` starts the REPL and wires everything via `bootstrap.py`.

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PAI — Web</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="logo">PAI</div>
+          <div class="tagline">ChatGPT-style UI + PAI features</div>
+        </div>
+        <button id="newChat" class="btn btn-primary">New chat</button>
+        <div class="panel">
+          <div class="panel-title">Session</div>
+          <div class="kv"><span>Provider</span><span id="provider">—</span></div>
+          <div class="kv"><span>Model</span><span id="model">—</span></div>
+          <div class="kv"><span>Session ID</span><span id="sessionId">—</span></div>
+          <label class="toggle">
+            <input id="streamToggle" type="checkbox" />
+            <span>Streaming</span>
+          </label>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Notices</div>
+          <div id="notices" class="notices">None</div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Tips</div>
+          <div class="tips">
+            <div>Shift+Enter for newline</div>
+            <div>New chat resets history</div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="chat">
+        <header class="topbar">
+          <div class="status" id="status">Ready</div>
+        </header>
+        <section id="messages" class="messages"></section>
+        <footer class="composer">
+          <textarea id="prompt" rows="2" placeholder="Message PAI…"></textarea>
+          <button id="send" class="btn btn-accent">Send</button>
+        </footer>
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

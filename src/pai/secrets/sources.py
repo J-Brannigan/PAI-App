@@ -36,7 +36,7 @@ class SystemKeyringSource:
             except Exception:
                 pass
         if _keyring is not None:
-            for account in ("API_KEY", "default", service, getpass.getuser()):
+            for account in ("API_KEY", "OPENAI_API_KEY", "default", service, getpass.getuser()):
                 try:
                     val = _keyring.get_password(service, account)
                     if val:
