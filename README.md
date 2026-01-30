@@ -72,6 +72,7 @@ storage:
   backend: file
   transcripts_dir: sessions
   resume: null
+  redact: false            # if true, stored message content is redacted
 
 runtime:
   stream: true
@@ -79,6 +80,8 @@ runtime:
 ui:
   config: ui.yaml           # optional; remove to disable banner
 ```
+
+Config keys are validated at startup; typos will fail fast.
 
 Optional `config/ui.yaml`:
 
@@ -106,6 +109,8 @@ banner:
 pai
 # or
 pai --config config/default.yaml
+# overrides
+pai --provider openai --model gpt-5-nano-2025-08-07 --no-stream
 ```
 
 In the REPL:
@@ -121,6 +126,7 @@ In the REPL:
 - Providers are pluggable adapters (OpenAI, Echo) discovered via a small registry.
 - `ResilientProvider` wraps adapters with retries/backoff and safe streaming behaviour.
 - `Transcript` can persist sessions as JSONL under `<repo>/sessions`.
+- Use `storage.redact: true` or `storage.backend: none` if you don’t want content stored on disk.
 
 ## Folder layout
 

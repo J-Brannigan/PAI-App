@@ -1,7 +1,8 @@
 from __future__ import annotations
 import time, random
-from typing import Iterable
+from typing import Iterable, List
 from pai.core.errors import ProviderClientError, ProviderTransientError
+from pai.core.ports import Message
 
 class ResiliencePolicy:
     def __init__(self, max_retries=3, base_delay=0.5, max_delay=8.0, total_timeout=30.0,
@@ -29,7 +30,7 @@ class ResilientProvider:
         # Fallback on configured transient types (e.g., TimeoutError)
         return isinstance(exc, self.policy.retry_exceptions)
 
-    def chat(self, messages):
+    def chat(self, messages: List[Message]):
         start = time.monotonic()
         attempt = 0
         while True:
@@ -43,7 +44,7 @@ class ResilientProvider:
                     raise RuntimeError(f"Provider call failed after retries: {e}") from e
                 time.sleep(self.policy.compute_backoff(attempt))
 
-    def chat_stream(self, messages) -> Iterable[str]:
+    def chat_stream(self, messages: List[Message]) -> Iterable[str]:
         start = time.monotonic()
         attempt = 0
         yielded_any = False

@@ -22,6 +22,7 @@ storage:
   backend: file
   transcripts_dir: sessions
   resume: null
+  redact: false
 
 # Runtime behaviour
 runtime:

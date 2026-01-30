@@ -1,6 +1,7 @@
 import typer
 from pathlib import Path
 from importlib.metadata import version as pkg_version, PackageNotFoundError
+from typing import Optional
 
 from .bootstrap import build_app
 from .core.chat_session import ChatSession
@@ -39,12 +40,22 @@ def _normalise_notices(val) -> str:
 
 
 @app.callback(invoke_without_command=True)
-def chat(config: Path = Path("config/default.yaml")) -> None:
+def chat(
+    config: Path = typer.Option(Path("config/default.yaml"), "--config", "-c"),
+    provider: Optional[str] = typer.Option(None, "--provider", help="Override model.provider"),
+    model: Optional[str] = typer.Option(None, "--model", help="Override model.name"),
+    stream: bool = typer.Option(False, "--stream", help="Force streaming on"),
+    no_stream: bool = typer.Option(False, "--no-stream", help="Force streaming off"),
+) -> None:
     """
     Start the PAI REPL.
     """
     try:
-        ctx = build_app(config)
+        if stream and no_stream:
+            print("[fatal] Cannot use both --stream and --no-stream")
+            raise typer.Exit(code=2)
+        stream_override = True if stream else False if no_stream else None
+        ctx = build_app(config, provider=provider, model=model, stream=stream_override)
     except Exception as e:
         print(f"[fatal] {e}")
         raise typer.Exit(code=1)

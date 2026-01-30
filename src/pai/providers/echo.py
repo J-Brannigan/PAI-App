@@ -3,6 +3,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import time
 from .registry import ProviderRegistry
 from ..secrets.sources import SecretsResolver
+from ..core.ports import Message
 
 _LOREM_50 = ("Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor "
              "incididunt ut labore et dolore magna aliqua Curabitur non nulla sit amet nisl "
@@ -21,10 +22,10 @@ class EchoProvider:
     def __init__(self, token_delay: float = 0.125):
         self.token_delay = token_delay
 
-    def chat(self, messages: List[Dict[str, Any]]) -> Dict[str, str]:
+    def chat(self, messages: List[Message]) -> Dict[str, str]:
         return {"content": " ".join(_LOREM_50)}
 
-    def chat_stream(self, messages: List[Dict[str, Any]]) -> Iterable[str]:
+    def chat_stream(self, messages: List[Message]) -> Iterable[str]:
         def gen():
             last = len(_LOREM_50) - 1
             for i, w in enumerate(_LOREM_50):

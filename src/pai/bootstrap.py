@@ -1,9 +1,9 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable
 from dotenv import load_dotenv
 
-from .config_loader import load_config
+from .config_loader import load_config, ConfigError
 from .providers.registry import ProviderRegistry
 from .storage.transcript import Transcript
 from .resilience.resilient_provider import ResilientProvider, ResiliencePolicy
@@ -12,13 +12,30 @@ from pai.core.errors import ProviderClientError
 from .secrets.sources import SecretsResolver
 
 
-def build_app(config_path: Path, repo_root: Optional[Path] = None) -> Dict[str, Any]:
+def build_app(
+    config_path: Path,
+    repo_root: Optional[Path] = None,
+    *,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+    stream: Optional[bool] = None,
+) -> Dict[str, Any]:
     """
     Composition root: load YAML, build provider (wrapped with resilience), and create Transcript.
     Returns: dict with cfg, paths, provider, transcript.
     """
     load_dotenv()
     cfg = load_config(config_path)
+    if provider:
+        cfg["model"]["provider"] = str(provider).lower()
+        if cfg["model"]["provider"] not in ("openai", "echo"):
+            raise ConfigError(
+                f"Unknown model.provider '{cfg['model']['provider']}' (expected 'openai' or 'echo')."
+            )
+    if model:
+        cfg["model"]["name"] = model
+    if stream is not None:
+        cfg["runtime"]["stream"] = bool(stream)
     config_dir = config_path.resolve().parent
     repo_root = repo_root or Path(__file__).resolve().parents[2]
 
@@ -97,6 +114,8 @@ def build_app(config_path: Path, repo_root: Optional[Path] = None) -> Dict[str, 
     tdir_raw = cfg["storage"]["transcripts_dir"]
     tdir_path = Path(tdir_raw)
     transcripts_dir = (repo_root / tdir_path).resolve() if not tdir_path.is_absolute() else tdir_path
+    redact_enabled = bool((cfg.get("storage") or {}).get("redact", False))
+    redact_fn: Optional[Callable[[str], str]] = (lambda _s: "[REDACTED]") if redact_enabled else None
 
     # ----- System prompt -----
     prompts_dir = Path(__file__).resolve().parent / "prompts"
@@ -111,6 +130,7 @@ def build_app(config_path: Path, repo_root: Optional[Path] = None) -> Dict[str, 
         session_id=resume_id,
         root_dir=(transcripts_dir if backend == "file" else None),
         header_meta={"config_path": str(config_path), "provider": provider_name, "model": model_name},
+        redact=redact_fn,
     )
 
     return {

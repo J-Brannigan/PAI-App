@@ -4,6 +4,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from openai import OpenAI
 
 from pai.providers.registry import ProviderRegistry
+from pai.core.ports import Message
 from pai.core.errors import ProviderClientError, ProviderTransientError
 
 
@@ -83,7 +84,7 @@ class OpenAIAdapter:
             organization=organization,
         )
 
-    def _build_args(self, messages: List[Dict[str, Any]], *, stream: bool) -> Dict[str, Any]:
+    def _build_args(self, messages: List[Message], *, stream: bool) -> Dict[str, Any]:
         args: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -94,7 +95,7 @@ class OpenAIAdapter:
             args["timeout"] = self.timeout
         return args
 
-    def chat(self, messages: List[Dict[str, Any]]) -> Dict[str, str]:
+    def chat(self, messages: List[Message]) -> Dict[str, str]:
         try:
             resp = self.client.chat.completions.create(**self._build_args(messages, stream=False))
             msg = resp.choices[0].message
@@ -102,7 +103,7 @@ class OpenAIAdapter:
         except Exception as e:
             raise _classify_openai_exception(e)
 
-    def chat_stream(self, messages: List[Dict[str, Any]]) -> Iterable[str]:
+    def chat_stream(self, messages: List[Message]) -> Iterable[str]:
         try:
             stream = self.client.chat.completions.create(**self._build_args(messages, stream=True))
         except Exception as e:

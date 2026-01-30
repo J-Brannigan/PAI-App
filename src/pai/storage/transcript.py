@@ -2,7 +2,8 @@ from __future__ import annotations
 import json
 import datetime as dt
 from pathlib import Path
-from typing import Dict, List, Optional, Literal
+from typing import Dict, List, Optional, Literal, Callable
+from pai.core.ports import Message
 
 Role = Literal['system', 'user', 'assistant']
 Status = Literal['complete', 'partial']
@@ -24,12 +25,14 @@ class Transcript:
         session_id: Optional[str] = None,
         root_dir: Optional[Path] = None,
         header_meta: Optional[Dict] = None,
+        redact: Optional[Callable[[str], str]] = None,
     ):
         self._system_prompt = system_prompt
         self._root_dir = Path(root_dir) if root_dir else None
         self._session_id = session_id or dt.datetime.now(dt.timezone.utc).strftime('%Y%m%d-%H%M%S')
         self._header_meta = header_meta or {}
-        self._messages: List[Dict[str, str]] = []
+        self._redact = redact
+        self._messages: List[Message] = []
 
         # Initialise backing store and in-memory view
         if self._root_dir:
@@ -59,7 +62,7 @@ class Transcript:
                 'type': 'message',
                 'ts': dt.datetime.now(dt.timezone.utc).isoformat(),
                 'role': 'system',
-                'content': system_prompt,
+                'content': self._redact_content(system_prompt),
                 'status': 'complete',
             })
 
@@ -68,7 +71,7 @@ class Transcript:
         return self._session_id
 
     @property
-    def messages(self) -> List[Dict[str, str]]:
+    def messages(self) -> List[Message]:
         # Return a shallow copy to avoid accidental mutation
         return list(self._messages)
 
@@ -77,7 +80,7 @@ class Transcript:
             'type': 'message',
             'ts': dt.datetime.now(dt.timezone.utc).isoformat(),
             'role': role,
-            'content': content,
+            'content': self._redact_content(content),
             'status': status,
         }
         if self._root_dir:
@@ -104,7 +107,7 @@ class Transcript:
             'type': 'message',
             'ts': dt.datetime.now(dt.timezone.utc).isoformat(),
             'role': 'system',
-            'content': self._system_prompt,
+            'content': self._redact_content(self._system_prompt),
             'status': 'complete',
         }
         with self._path.open('a', encoding='utf-8') as f:
@@ -124,3 +127,11 @@ class Transcript:
                     continue
                 if obj.get('type') == 'message' and obj.get('role') in ('system', 'user', 'assistant'):
                     self._messages.append({'role': obj['role'], 'content': obj.get('content', '')})
+
+    def _redact_content(self, content: str) -> str:
+        if self._redact:
+            try:
+                return self._redact(content)
+            except Exception:
+                return "[REDACTED]"
+        return content

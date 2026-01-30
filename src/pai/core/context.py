@@ -1,7 +1,8 @@
 # src/pai/core/context.py
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
+from .ports import Message
 
 # Optional: use tiktoken if present for better counts
 try:
@@ -40,7 +41,7 @@ class TokenCounter:
                 pass
         return _rough_token_count(text)
 
-    def count_messages(self, messages: List[Dict[str, Any]]) -> int:
+    def count_messages(self, messages: List[Message]) -> int:
         # Very simple approximation: per-message overhead + content tokens
         total = 0
         for m in messages:
@@ -71,12 +72,12 @@ class ContextWindowManager:
         self.policy = policy
         self.counter = TokenCounter(model_hint=model_hint)
 
-    def apply(self, messages: List[Dict[str, Any]], model_hint: Optional[str] = None) -> List[Dict[str, Any]]:
+    def apply(self, messages: List[Message], model_hint: Optional[str] = None) -> List[Message]:
         if not messages:
             return messages
 
         # Never drop the very first message if it's system
-        system: List[Dict[str, Any]] = []
+        system: List[Message] = []
         rest = messages
         if messages[0].get("role") == "system":
             system = [messages[0]]

@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
+from .ports import Message
 from .context import ContextWindowManager, ContextPolicy
 
 class ChatSession:
@@ -16,7 +17,7 @@ class ChatSession:
             )
             self.ctx_mgr = ContextWindowManager(policy, model_hint=getattr(self.model, "model", None))
 
-    def _outgoing_messages(self) -> List[Dict[str, Any]]:
+    def _outgoing_messages(self) -> List[Message]:
         msgs = self.transcript.messages
         return self.ctx_mgr.apply(msgs) if self.ctx_mgr else msgs
 
